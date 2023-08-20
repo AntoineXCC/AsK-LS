@@ -234,14 +234,14 @@ class svm:
             Kt = X[:, :, 1]
         else:
             Ks = self.kernel(X, self.train_data)
-            Kt = self.kernel(self.train_data, X)
+            Kt = self.kernel(self.train_data, X).T
         if (Ks.shape != Kt.shape):
-            raise ValueError(f"Ks and Kt are different shape: "
-                             "{Ks.shape} vs {Kt.shape}")
+            raise ValueError("Ks and Kt are different shape: "
+                             f"{Ks.shape} vs {Kt.shape}")
         if (Ks.shape[1] != self.weights_s.shape[0]):
-            raise ValueError(f"Test kernel matrix should have "
-                             "{self.weights_s.shape[0]} columns "
-                             "but it has {Ks.shape[1]} instead")
+            raise ValueError("Test kernel matrix should have "
+                             f"{self.weights_s.shape[0]} columns "
+                             f"but it has {Ks.shape[1]} instead")
         fs = Ks@self.weights_s + self.bias_s
         ft = Kt@self.weights_t + self.bias_t
         return fs, ft
@@ -262,7 +262,7 @@ class svm:
         Returns
         -------
         preds : ndarray of shape (n_test,)
-            Class labels for sample in (Ks, Kt)
+            Class labels for sample in X
         """
 
         fs, ft = self.predict_features(X)
@@ -530,7 +530,7 @@ def search_gamma_cv(X,
         values are output of cross validation
     """
     gamma_scores = dict()
-    if random_state is not None:
+    if random_state is None:
         random_state = np.random.randint(0, 2**32)
     for i, gamma in enumerate(gamma_list):
         if not silent:
@@ -595,15 +595,22 @@ def stacked_generalization(model,
 
     stratified : bool, default = False
         Stratified K Fold or not
+        
+    output : {"class proba", "preds", "metrics"}, default = "class proba"
+        Specifies the output
 
     Returns
     -------
-    report : dict
-        Dictionnary contaning accuracy, micro f1-score, macro f1-score
-        Dictionnary has the following structure:
-        {"acc": 0.5,
-         "micro-f1": 0.3,
-         "macro-f1": 0.5}
+    out : dict
+        Dictionnary containing classes, class_proba, preds, metrics
+        classes is list of length n_classes
+        class_proba is ndarray of shape (n_samples_test, n_classes)
+        preds is ndarray of shape (n_samples_test,)
+        metrics is dict containing accuracy, micro-f1 score and macro-f1 score,
+        it has the following structure:
+            {"acc": 0.5,
+             "micro-f1": 0.3,
+             "macro-f1": 0.5}        
     """
     if not SM:
         raise Exception("statsmodels non installed, "
@@ -675,4 +682,9 @@ def stacked_generalization(model,
     preds = np.zeros(pre_preds.shape)
     for i, c in enumerate(classes):
         preds[pre_preds == i] = c
-    return compute_metrics(Y_test, preds)
+    out = dict()
+    out["classes"] = classes
+    out["class_proba"] = class_test_proba
+    out["preds"] = preds
+    out["metrics"] = compute_metrics(Y_test, preds)
+    return out
